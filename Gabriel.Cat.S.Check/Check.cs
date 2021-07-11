@@ -8,33 +8,20 @@ using Telegram.Bot;
 
 namespace Gabriel.Cat.S.Check
 {
-    public interface IFile
-    {
-        string Name { get; }
-        Uri Picture { get; }
-        IEnumerable<Link> GetLinks();
-    }
-    public class Link
-    {
-        public string Url { get; set; }
-        public string TextoAntes { get; set; } = String.Empty;
-        public string TextoDespues { get; set; } = String.Empty;
-
-        public static implicit operator Link(string url)
-        {
-            return new Link() { Url = url };
-        }
-    }
     public delegate IEnumerable<IFile> GetCapitulosDelegate(Uri uriWeb);
+    public delegate void LogDelegate(string log);
     public class Check
     {
         public const int DEFAULTTIME = 5 * 60 * 1000;
+        
         public Check(string fileConfig = "Config.txt", string fileUploaded = "Uploaded.txt")
         {
             FileConfig = fileConfig;
             DicNames = new SortedList<string, string>();
             FileUploaded = fileUploaded;
+            Log = (s) => Console.WriteLine(s);
         }
+        public LogDelegate Log { get; set; }
         public string ApiKey { get; set; }
         public string ChannelName { get; set; }
         public string Channel => $"@{ChannelName}";
@@ -107,8 +94,8 @@ namespace Gabriel.Cat.S.Check
                     linkMega = capitulo.GetLinks();
                     if (!Equals(linkMega, default) && linkMega.Count() > 0)
                     {
-                        BotClient.SendPhotoAsync(Channel, new Telegram.Bot.Types.InputFiles.InputOnlineFile(capitulo.Picture), $"{capitulo.Name} {string.Join('\n', linkMega.Select(l=>$"{l.TextoAntes}{l.Url}{l.TextoDespues}"))}");
-                        Console.WriteLine(capitulo.Name);
+                        BotClient.SendPhotoAsync(Channel, new Telegram.Bot.Types.InputFiles.InputOnlineFile(capitulo.Picture), $"{capitulo.Name} \n{string.Join('\n', linkMega.Select(l=>$"{l.TextoAntes}{l.Url}{l.TextoDespues}"))}");
+                        Log(capitulo.Name);
                         System.IO.File.AppendAllLines(FileUploaded, new string[] { capitulo.Name });
                     }
                     else DicNames.Remove(capitulo.Name);
@@ -131,12 +118,12 @@ namespace Gabriel.Cat.S.Check
                 try
                 {
                     PublicarUnaVez(method);
-                    Console.WriteLine(mensajePosPublicacion);
+                    Log(mensajePosPublicacion);
                     System.Threading.Thread.Sleep(milisegundosAEsperar);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Esperando si se resuelve {ex.Message}");
+                    Log($"Esperando si se resuelve {ex.Message}");
                     System.Threading.Thread.Sleep(milisegundosTrasError);
                 }
 
