@@ -16,7 +16,7 @@ namespace Gabriel.Cat.S.Check
     public delegate IEnumerable<IFileMega> GetCapitulosDelegate();
     public class Check
     {
-        public const int DEFAULTTIMETOCHECK = 5 * 60 * 1000;
+        public const int DEFAULTTIME = 5 * 60 * 1000;
         public Check(string fileConfig = "Config.txt", string fileUploaded = "Uploaded.txt")
         {
             FileConfig = fileConfig;
@@ -68,6 +68,11 @@ namespace Gabriel.Cat.S.Check
             ApiKey = args[2];
             if (args.Length > CAMPOSOBLIGATORIOS)
                 FileUploaded = args[3];
+            if (System.IO.File.Exists(FileConfig))
+            {
+                System.IO.File.Delete(FileConfig);
+            }
+            System.IO.File.WriteAllLines(FileConfig, args);
 
             if (System.IO.File.Exists(FileUploaded))
             {
@@ -99,19 +104,29 @@ namespace Gabriel.Cat.S.Check
             }
         }
 
-        public void Publicar([NotNull] GetCapitulosDelegate method, int milisegundosAEsperar = -1, string mensajePosPublicacion = "Descanso", Cancelation cancelation = default)
+        public void Publicar([NotNull] GetCapitulosDelegate method, int milisegundosAEsperar = -1, int milisegundosTrasError = -1, string mensajePosPublicacion = "Descanso", Cancelation cancelation = default)
         {
             if (milisegundosAEsperar < 0)
-                milisegundosAEsperar = DEFAULTTIMETOCHECK;
+                milisegundosAEsperar = DEFAULTTIME;
+            if (milisegundosTrasError < 0)
+                milisegundosTrasError = DEFAULTTIME;
 
             if (Equals(cancelation, default))
                 cancelation = new Cancelation();
 
             do
             {
-                PublicarUnaVez(method);
-                Console.WriteLine(mensajePosPublicacion);
-                System.Threading.Thread.Sleep(milisegundosAEsperar);
+                try
+                {
+                    PublicarUnaVez(method);
+                    Console.WriteLine(mensajePosPublicacion);
+                    System.Threading.Thread.Sleep(milisegundosAEsperar);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Esperando si se resuelve {ex.Message}");
+                    System.Threading.Thread.Sleep(milisegundosTrasError);
+                }
 
             } while (cancelation.Continue);
         }
