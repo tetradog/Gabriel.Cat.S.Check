@@ -1,19 +1,31 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Telegram.Bot;
 
 
 
 namespace Gabriel.Cat.S.Check
 {
-    public interface IFileMega
+    public interface IFile
     {
         string Name { get; }
         Uri Picture { get; }
-        string[] GetLinksMega();
+        IEnumerable<Link> GetLinks();
     }
-    public delegate IEnumerable<IFileMega> GetCapitulosDelegate();
+    public class Link
+    {
+        public string Url { get; set; }
+        public string TextoAntes { get; set; } = String.Empty;
+        public string TextoDespues { get; set; } = String.Empty;
+
+        public static implicit operator Link(string url)
+        {
+            return new Link() { Url = url };
+        }
+    }
+    public delegate IEnumerable<IFile> GetCapitulosDelegate(Uri uriWeb);
     public class Check
     {
         public const int DEFAULTTIME = 5 * 60 * 1000;
@@ -86,16 +98,16 @@ namespace Gabriel.Cat.S.Check
 
         public void PublicarUnaVez([NotNull] GetCapitulosDelegate method)
         {
-            string[] linkMega;
-            foreach (IFileMega capitulo in method())
+            IEnumerable<Link> linkMega;
+            foreach (IFile capitulo in method(Web))
             {
                 if (!DicNames.ContainsKey(capitulo.Name))
                 {
                     DicNames.Add(capitulo.Name, capitulo.Name);
-                    linkMega = capitulo.GetLinksMega();
-                    if (!Equals(linkMega, default) && linkMega.Length > 0)
+                    linkMega = capitulo.GetLinks();
+                    if (!Equals(linkMega, default) && linkMega.Count() > 0)
                     {
-                        BotClient.SendPhotoAsync(Channel, new Telegram.Bot.Types.InputFiles.InputOnlineFile(capitulo.Picture), $"{capitulo.Name} {string.Join('\n', linkMega)}");
+                        BotClient.SendPhotoAsync(Channel, new Telegram.Bot.Types.InputFiles.InputOnlineFile(capitulo.Picture), $"{capitulo.Name} {string.Join('\n', linkMega.Select(l=>$"{l.TextoAntes}{l.Url}{l.TextoDespues}"))}");
                         Console.WriteLine(capitulo.Name);
                         System.IO.File.AppendAllLines(FileUploaded, new string[] { capitulo.Name });
                     }
