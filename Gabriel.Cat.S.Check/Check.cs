@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Telegram.Bot;
 
+
+
 namespace Gabriel.Cat.S.Check
 {
     public interface IFileMega
@@ -11,10 +13,10 @@ namespace Gabriel.Cat.S.Check
         Uri Picture { get; }
         string[] GetLinksMega();
     }
-    public delegate IEnumerable<IFileMega> GetCapitulosDelegate(); 
+    public delegate IEnumerable<IFileMega> GetCapitulosDelegate();
     public class Check
     {
-        public const int DEFAULTTIMETOCHECK=5 * 60 * 1000;
+        public const int DEFAULTTIMETOCHECK = 5 * 60 * 1000;
         public Check(string fileConfig = "Config.txt", string fileUploaded = "Uploaded.txt")
         {
             FileConfig = fileConfig;
@@ -29,9 +31,9 @@ namespace Gabriel.Cat.S.Check
         public string FileConfig { get; set; }
 
         public SortedList<string, string> DicNames { get; set; }
-        public TelegramBotClient BotClient { get;  set; }
+        public TelegramBotClient BotClient { get; set; }
 
-        public void Load(string[] args=default)
+        public void Load(string[] args = default)
         {
             const int CAMPOSOBLIGATORIOS = 3;
 
@@ -69,7 +71,7 @@ namespace Gabriel.Cat.S.Check
 
             if (System.IO.File.Exists(FileUploaded))
             {
-                foreach(string capitulo in System.IO.File.ReadAllLines(FileUploaded))
+                foreach (string capitulo in System.IO.File.ReadAllLines(FileUploaded))
                 {
                     DicNames.Add(capitulo, capitulo);
                 }
@@ -77,18 +79,18 @@ namespace Gabriel.Cat.S.Check
             BotClient = new TelegramBotClient(ApiKey);
         }
 
-        public void PublicarUnaVez([NotNull]GetCapitulosDelegate method)
+        public void PublicarUnaVez([NotNull] GetCapitulosDelegate method)
         {
             string[] linkMega;
-            foreach(IFileMega capitulo in method())
+            foreach (IFileMega capitulo in method())
             {
                 if (!DicNames.ContainsKey(capitulo.Name))
                 {
                     DicNames.Add(capitulo.Name, capitulo.Name);
                     linkMega = capitulo.GetLinksMega();
-                    if (!Equals(linkMega, default))
+                    if (!Equals(linkMega, default) && linkMega.Length > 0)
                     {
-                        BotClient.SendPhotoAsync(Channel, new Telegram.Bot.Types.InputFiles.InputOnlineFile(capitulo.Picture), $"{capitulo.Name} {string.Join('\n',linkMega)}");
+                        BotClient.SendPhotoAsync(Channel, new Telegram.Bot.Types.InputFiles.InputOnlineFile(capitulo.Picture), $"{capitulo.Name} {string.Join('\n', linkMega)}");
                         Console.WriteLine(capitulo.Name);
                         System.IO.File.AppendAllLines(FileUploaded, new string[] { capitulo.Name });
                     }
@@ -97,7 +99,7 @@ namespace Gabriel.Cat.S.Check
             }
         }
 
-        public void Publicar([NotNull]GetCapitulosDelegate method,int milisegundosAEsperar=-1,string mensajePosPublicacion="Descanso",Cancelation cancelation=default )
+        public void Publicar([NotNull] GetCapitulosDelegate method, int milisegundosAEsperar = -1, string mensajePosPublicacion = "Descanso", Cancelation cancelation = default)
         {
             if (milisegundosAEsperar < 0)
                 milisegundosAEsperar = DEFAULTTIMETOCHECK;
@@ -110,7 +112,7 @@ namespace Gabriel.Cat.S.Check
                 PublicarUnaVez(method);
                 Console.WriteLine(mensajePosPublicacion);
                 System.Threading.Thread.Sleep(milisegundosAEsperar);
-               
+
             } while (cancelation.Continue);
         }
 
