@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <Version>1.0.7</Version>
+    <Version>1.0.9</Version>
     <Authors>Gabriel.Cat.Developer</Authors>
     <Company>Gabriel.Cat.Developer</Company>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>

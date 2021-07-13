@@ -1,28 +1,28 @@
-﻿using System;
+﻿using Gabriel.Cat.S.Extension;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Telegram.Bot;
-
-
+using Telegram.Bot.Types;
 
 namespace Gabriel.Cat.S.Check
 {
     public delegate Task<IEnumerable<IFile>> GetCapitulosDelegate(Uri uriWeb);
     public delegate void LogDelegate(string log);
     public delegate bool CheckFileExistDelegate(string fileName);
-    public delegate void TrataFileDelegate(string fileName,params string[] args);
+    public delegate void TrataFileDelegate(string fileName, params string[] args);
     public delegate string[] ReadFileDelegate(string fileName);
     public class Check
     {
         public const int DEFAULTTIME = 5 * 60 * 1000;
-        
-        public Check(string fileConfig = "Config.txt", string fileUploaded = "Uploaded.txt")
+        public const string CHANNELLOG = "@CheckingLog";
+        public Check(string fileConfig = "Config.txt")
         {
             FileConfig = fileConfig;
-            DicNames = new SortedList<string, string>();
-            FileUploaded = fileUploaded;
+            DicNames = new SortedList<string, int>();
             Log = (s) => Console.WriteLine(s);
             ExistFile = (f) => System.IO.File.Exists(f);
             DeleteFile = (f, args) => System.IO.File.Delete(f);
@@ -35,16 +35,16 @@ namespace Gabriel.Cat.S.Check
         public TrataFileDelegate DeleteFile { get; set; }
         public TrataFileDelegate AppendFile { get; set; }
         public string ApiKey { get; set; }
-        public string ChannelName { get; set; }
-        public string Channel => $"@{ChannelName}";
+        public string Channel { get; set; }
         public Uri Web { get; set; }
-        public string FileUploaded { get; set; }
         public string FileConfig { get; set; }
+        public int LogId { get; set; }
+        public int TotalLoop { get; set; }
 
-        public SortedList<string, string> DicNames { get; set; }
+        public SortedList<string, int> DicNames { get; set; }
         public TelegramBotClient BotClient { get; set; }
 
-        public void Load(string[] args = default)
+        public async Task Load(string[] args = default)
         {
             const int CAMPOSOBLIGATORIOS = 3;
 
@@ -75,44 +75,117 @@ namespace Gabriel.Cat.S.Check
             }
 
             Web = new Uri(args[0]);
-            ChannelName = args[1];
+            Channel = args[1];
+            if (!Channel.StartsWith('@'))
+            {
+                Channel = "@" + Channel;
+                args[1] = Channel;
+            }
             ApiKey = args[2];
-            if (args.Length > CAMPOSOBLIGATORIOS)
-                FileUploaded = args[3];
+            BotClient = new TelegramBotClient(ApiKey);
+            if (args.Length > 3)
+                TotalLoop = int.Parse(args[3]);
+            else
+            {
+                TotalLoop =-1;
+                args = args.Append(TotalLoop + "").ToArray();
+            }
+            if (args.Length > 4)
+                LogId = int.Parse(args[4]);
+            else
+            {
+                LogId = (await BotClient.SendTextMessageAsync(CHANNELLOG, $"Init {Channel}")).MessageId;
+                args = args.Append(LogId + "").ToArray();
+            }
+
             if (ExistFile(FileConfig))
             {
-               DeleteFile(FileConfig);
+                DeleteFile(FileConfig);
             }
             AppendFile(FileConfig, args);
 
-            if (ExistFile(FileUploaded))
-            {
-                foreach (string capitulo in ReadFile(FileUploaded))
-                {
-                    DicNames.Add(capitulo, capitulo);
-                }
-            }
-            BotClient = new TelegramBotClient(ApiKey);
         }
 
         public async Task PublicarUnaVez([NotNull] GetCapitulosDelegate method)
         {
+            string nombreLimpio;
             IEnumerable<Link> linkMega;
+            if (DicNames.Count == 0)
+            {
+                await CargarCapitulosLog();
+            }
             foreach (IFile capitulo in await method(Web))
             {
-                if (!DicNames.ContainsKey(capitulo.Name))
+                nombreLimpio = capitulo.Name.Replace("!", "").Trim(' ');
+                if (!DicNames.ContainsKey(nombreLimpio))
                 {
-                    DicNames.Add(capitulo.Name, capitulo.Name);
+                    DicNames.Add(nombreLimpio, -1);
                     linkMega = capitulo.GetLinks();
                     if (!Equals(linkMega, default) && linkMega.Count() > 0)
                     {
-                        await BotClient.SendPhotoAsync(Channel, new Telegram.Bot.Types.InputFiles.InputOnlineFile(capitulo.Picture), $"{capitulo.Name} \n{string.Join('\n', linkMega.Select(l=>$"{l.TextoAntes}{l.Url}{l.TextoDespues}"))}");
+                        DicNames[capitulo.Name] = (await BotClient.SendPhotoAsync(Channel, new Telegram.Bot.Types.InputFiles.InputOnlineFile(capitulo.Picture), $"{capitulo.Name} \n{string.Join('\n', linkMega.Select(l => $"{l.TextoAntes}{l.Url}{l.TextoDespues}"))}")).MessageId;
                         Log(capitulo.Name);
-                        AppendFile(FileUploaded, capitulo.Name);
+                        await UpdateLog();
                     }
-                    else DicNames.Remove(capitulo.Name);
+                    else DicNames.Remove(nombreLimpio);
                 }
             }
+        }
+
+        private async Task CargarCapitulosLog()
+        {
+            string[] posts;
+            int postId;
+            int indexAnd;
+            string nombreCapitulo;
+            Chat chatLog = await BotClient.GetChatAsync(CHANNELLOG);
+            Chat chatChannel = await BotClient.GetChatAsync(Channel);
+            string message = await chatLog.GetMessage(LogId);
+            if (!string.IsNullOrEmpty(message) && message.Contains("\n") && char.IsDigit(message[0]))
+            {
+                posts = message.Split('\n');
+                for (int i = 0; i < posts.Length; i++)
+                {
+                    if (int.TryParse(posts[i], out postId))
+                    {
+                        message = await chatChannel.GetMessage(postId);
+                        if (!message.Contains(Channel))
+                        {
+                            nombreCapitulo = message.Split("\n")[0];
+                            do
+                            {
+                                indexAnd = nombreCapitulo.IndexOf('&');
+                                if (indexAnd >= 0)
+                                    nombreCapitulo = nombreCapitulo.Remove(indexAnd, nombreCapitulo.IndexOf(';', indexAnd) + 1 - indexAnd);
+                            } while (indexAnd >= 0);
+                            nombreCapitulo = nombreCapitulo.Trim(' ');
+                            if (!DicNames.ContainsKey(nombreCapitulo))
+                                DicNames.Add(nombreCapitulo, postId);
+                            else
+                            {
+                                Log($"Duplicado-{nombreCapitulo}");
+                                try
+                                {
+                                    await BotClient.DeleteMessageAsync(Channel, postId);
+                                }
+                                catch { }
+
+                            }
+                        }
+                    }
+                }
+
+                await UpdateLog();
+            }
+
+        }
+
+        private async Task UpdateLog()
+        {
+            StringBuilder str = new StringBuilder();
+            foreach (var item in DicNames)
+                str.AppendLine(item.Value + "");
+            try { await BotClient.EditMessageTextAsync(CHANNELLOG, LogId, str.ToString()); } catch { }
         }
 
         public async Task Publicar([NotNull] GetCapitulosDelegate method, int milisegundosAEsperar = -1, int milisegundosTrasError = -1, string mensajePosPublicacion = "Descanso", Cancelation cancelation = default)
@@ -125,7 +198,7 @@ namespace Gabriel.Cat.S.Check
             if (Equals(cancelation, default))
                 cancelation = new Cancelation();
 
-            do
+            for(int i=0;i!=TotalLoop &&cancelation.Continue;i++)
             {
                 try
                 {
@@ -139,7 +212,7 @@ namespace Gabriel.Cat.S.Check
                     await Task.Delay(milisegundosTrasError);
                 }
 
-            } while (cancelation.Continue);
+            } 
         }
 
 
