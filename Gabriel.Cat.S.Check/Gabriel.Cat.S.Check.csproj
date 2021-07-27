@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <Version>1.0.9</Version>
+    <Version>1.0.10</Version>
     <Authors>Gabriel.Cat.Developer</Authors>
     <Company>Gabriel.Cat.Developer</Company>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Gabriel.Cat.S.Utilitats" Version="1.2.4" />
     <PackageReference Include="Gabriel.Cat.S.Xarxa" Version="1.0.3" />
     <PackageReference Include="System.Collections" Version="4.3.0" />
     <PackageReference Include="Telegram.Bot" Version="16.0.1" />
